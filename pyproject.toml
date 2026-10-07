@@ -1,5 +1,24 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
 [project]
 name = "protocoller"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = []
+
+[project.optional-dependencies]
+inference = [
+    "av==16.0.1",
+    "faster-whisper==1.2.1",
+    "pyannote.audio==4.0.7",
+    "llama-cpp-python==0.3.36",
+]
+setup = ["huggingface-hub==0.36.2"]
+
+[project.scripts]
+protocoller = "protocoller.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/protocoller"]

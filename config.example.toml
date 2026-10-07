@@ -1,0 +1,10 @@
+[models]
+transcription = "~/.protocoller/models/transcription"
+diarization = "~/.protocoller/models/diarization"
+minutes = "~/.protocoller/models/minutes/model.gguf"
+
+[runtime]
+language = "auto"  # auto, de, or en; German and English are the initial evaluation languages
+threads = 4
+context_size = 4096
+max_tokens = 1024

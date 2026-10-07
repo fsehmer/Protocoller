@@ -1,0 +1,1 @@
+"""Local capture and normalization."""

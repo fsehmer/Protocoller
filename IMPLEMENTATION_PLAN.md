@@ -9,7 +9,7 @@ The repository currently contains Python project metadata (`Python >=3.12`) and 
 ## Scope and Working Assumptions
 
 - Start with macOS as the development platform; keep the processing core portable. Confirm the deployment operating system, processor, and available RAM before choosing model sizes.
-- Initially support microphone recording and existing audio files. Capture of remote participants through system audio is a separate platform-specific milestone.
+- Support microphone recording, system-audio capture of sound played through speakers or headphones, and existing audio files from the outset. Establish system-audio capture on the initial target OS in milestone 1.
 - Evaluate German and English as initial languages; confirm the actual meeting languages during the first milestone.
 - The first release records during the meeting and performs final processing afterward. Live captions are a later enhancement.
 - Speakers initially receive meeting-specific labels such as `Speaker 1`. Users assign participant names after reviewing the audio. Automatic recognition across meetings is outside the initial scope.
@@ -17,7 +17,7 @@ The repository currently contains Python project metadata (`Python >=3.12`) and 
 
 ## User Workflow
 
-1. Create a meeting, enter its title and optional agenda, and select an audio device or file.
+1. Create a meeting, enter its title and optional agenda, and select microphone input, system audio, both sources, or an existing file.
 2. Start recording with a visible recording indicator, input level, elapsed time, and stop control.
 3. Stop recording and run transcription and speaker diarization locally.
 4. Review timestamped speech, rename speakers, and correct text or speaker assignments.
@@ -27,7 +27,7 @@ The repository currently contains Python project metadata (`Python >=3.12`) and 
 ## Architecture
 
 ```text
-Microphone / audio file
+Microphone / system audio / audio file
           |
 Durable local recording + meeting metadata
           |
@@ -48,7 +48,7 @@ Keep recording independent of inference so slow models cannot interrupt capture.
 
 | Component | Initial approach | Selection condition |
 | --- | --- | --- |
-| Audio capture | `sounddevice`/PortAudio adapter and durable PCM files | Verify device permissions, packaging, and long-recording reliability on the target OS |
+| Audio capture | Microphone adapter, OS-specific system-audio adapter, and durable PCM files | Select the system-audio backend in milestone 1; verify permissions, speaker/headphone routing, synchronization, packaging, and long-recording reliability |
 | Transcription | `faster-whisper` behind a backend interface | Benchmark multilingual models on the actual hardware; use CPU first where accelerator support is unavailable |
 | Speaker diarization | Local `pyannote.audio` Community-1 pipeline | Verify Python compatibility, complete offline model loading, resource usage, and model access terms |
 | Minutes generation | Quantized instruction model through a local `llama.cpp` runtime | Choose model and quantization by RAM, language quality, context needs, and model license |
@@ -95,19 +95,22 @@ For long transcripts, extract structured facts from overlapping chunks, reconcil
 
 ## Implementation Milestones
 
-### 1. Establish Feasibility and Project Foundation
+### 1. Establish Feasibility, System-Audio Capture, and Project Foundation
 
 - Confirm hardware, languages, typical duration, participant count, and microphone versus online-meeting requirements.
 - Add package/build configuration, CLI entry point, typed schemas, configuration loading, and test discovery.
+- Select and implement a local system-audio capture backend for the target OS. Capture playback directly so remote participants are recorded when using either speakers or headphones.
+- Add a minimal CLI recording command for system audio alone and system audio together with microphone input. Preserve separate source tracks and timestamps on a shared meeting timeline.
+- Verify required OS permissions, source selection, speaker/headphone routing, device changes, and microphone/system-audio synchronization. Check for duplicate remote speech picked up by the microphone when speakers are used.
 - Create explicit model installation/import and diagnostic commands; pin compatible dependencies and model revisions.
 - Benchmark representative short recordings for accuracy, processing time, memory, and offline execution.
 
-**Exit:** one sample runs through transcription, diarization, and draft minutes with networking disabled; document measured hardware limits and select the initial models.
+**Exit:** short recordings capture local microphone speech and remote playback with both speaker and headphone output, preserving source tracks and synchronized timestamps. One captured sample runs through transcription, diarization, and draft minutes with networking disabled; document measured hardware limits, capture-backend requirements, and initial model selections.
 
 ### 2. Implement Audio Import and Recording
 
 - Import WAV first, then add other formats through a decoder adapter.
-- List/select devices, handle microphone permission errors, and show input levels.
+- Extend milestone 1 capture with device/source selection, microphone and system-audio permission handling, and separate source levels.
 - Stream recording to recoverable chunks with a manifest; handle disk-full, device loss, stop, and interruption.
 
 **Exit:** a 60-minute recording remains playable and complete after normal stop; interruption preserves already-flushed audio and reports any loss.
@@ -146,15 +149,15 @@ For long transcripts, extract structured facts from overlapping chunks, reconcil
 
 **Exit:** recording, review, and export work with networking blocked, no automatic downloads, and no external service dependency.
 
-### Later: Live Captions and Online Meetings
+### Later: Live Captions and Additional Platforms
 
-Add incremental transcription with provisional speaker labels only after batch quality and hardware throughput are established. Reconcile provisional output during final processing. Separately implement system-audio capture per OS, preserving separate microphone and remote tracks where available and handling echo and synchronization.
+Add incremental transcription with provisional speaker labels only after batch quality and hardware throughput are established. Reconcile provisional output during final processing. Extend the system-audio capture established in milestone 1 to additional operating systems, preserving the source-track and synchronization contracts.
 
 ## Validation Strategy
 
 Use standard-library `unittest` for schemas, timestamp reconciliation, chunk deduplication, evidence validation, revisions, and recovery behavior. Keep model-dependent integration tests separate from fast tests. Once tests exist, run `python -m unittest discover -s tests -v`.
 
-Build a consented evaluation set covering German/English, two to six speakers, silence, accents, noise, interruptions, overlap, and a long meeting. Annotate sample transcripts and speaker turns. Measure word error rate, diarization error rate with documented overlap/collar settings, peak RAM, and processing time divided by audio duration.
+Build a consented evaluation set covering German/English, two to six speakers, silence, accents, noise, interruptions, overlap, and a long meeting. Test system-audio capture with speaker and headphone output, simultaneous microphone input, output-device changes, duplicate speech, and timing drift. Annotate sample transcripts and speaker turns. Measure word error rate, diarization error rate with documented overlap/collar settings, peak RAM, and processing time divided by audio duration.
 
 Set numerical accuracy and speed release thresholds after milestone 1 establishes a baseline on target hardware. Independently require valid exports, preserved timestamps, reviewable ambiguous speech, no invented commitments in the audited minutes fixtures, and successful operation with outbound networking blocked. Unit coverage alone cannot establish model quality.
 
@@ -169,4 +172,4 @@ Set numerical accuracy and speed release thresholds after milestone 1 establishe
 
 ## First Implementation Slice
 
-Start with a CLI that accepts a local WAV file and produces `transcript.json`, `transcript.md`, and `minutes.md` in a chosen output directory. Validate this complete offline path before adding microphone capture and the desktop interface. Command names, dependencies, model sizes, and hardware requirements become final only after the feasibility milestone.
+Start with a CLI that records system audio, optionally together with microphone input, or accepts a local WAV file, and produces `transcript.json`, `transcript.md`, and `minutes.md` in a chosen output directory. Validate capture through both speaker and headphone output and the complete offline processing path in milestone 1 before adding the desktop interface. Command names, dependencies, model sizes, and hardware requirements become final only after the feasibility milestone.
