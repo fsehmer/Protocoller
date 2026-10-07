@@ -21,7 +21,7 @@ def main() -> int:
     offline_environment()
     deny_network()
     stage, config_path, input_path, output_path, speakers = sys.argv[1:]
-    config = Config.load(Path(config_path))
+    config = Config.load(Path(config_path), require_minutes=stage == "minutes")
     start = time.perf_counter()
     if stage == "transcribe":
         from dataclasses import asdict
@@ -31,7 +31,7 @@ def main() -> int:
     elif stage == "diarize":
         from dataclasses import asdict
         from protocoller.diarization.local import diarize
-        turns = diarize(Path(input_path), config, int(speakers) if speakers else None)
+        turns = diarize(Path(input_path), config, json.loads(speakers) if speakers else None)
         value = {"turns": [asdict(turn) for turn in turns]}
     elif stage == "minutes":
         from protocoller.minutes.local import generate

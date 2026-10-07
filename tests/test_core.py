@@ -272,7 +272,8 @@ class PipelineTests(unittest.TestCase):
             with patch("protocoller.pipeline.run_stage", side_effect=fake_stage), patch.dict(os.environ):
                 report = process(root / "input.wav", root / "out", config)
             transcript = json.loads((root / "out" / "transcript.json").read_text())
-            self.assertEqual(transcript["segments"][0]["speaker"], "SPEAKER_00")
+            self.assertEqual(transcript["segments"][0]["speaker"], "speaker_001")
+            self.assertEqual(transcript["speaker_model_labels"]["speaker_001"], "SPEAKER_00")
             self.assertIn("transcript.md#s000001", (root / "out" / "minutes.md").read_text())
             self.assertTrue((root / "out" / "raw-transcription.json").is_file())
             self.assertTrue((root / "out" / "raw-diarization.json").is_file())

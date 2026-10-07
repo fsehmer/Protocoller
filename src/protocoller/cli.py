@@ -16,6 +16,7 @@ def parser() -> argparse.ArgumentParser:
     commands = cli.add_subparsers(dest="command", required=True)
     doctor = commands.add_parser("doctor", help="Inspect platform, dependencies, and optional model configuration")
     doctor.add_argument("--config", type=Path)
+    doctor.add_argument("--transcript-only", action="store_true", help="Check only speech model bundles")
     commands.add_parser("build-capture", help="Compile the macOS capture helper (does not record)")
     commands.add_parser("devices", help="List microphone device IDs (does not record)")
     recording = commands.add_parser("record", help="Record system playback, optionally with microphone input")
@@ -24,12 +25,28 @@ def parser() -> argparse.ArgumentParser:
     recording.add_argument("--source", choices=("system", "microphone", "both"), default="both")
     recording.add_argument("--chunk-seconds", type=float, default=2, help="Durable chunk length (0.1–60 seconds)")
     recording.add_argument("--microphone", default="default", help="Device ID from devices; default uses the OS input")
-    processing = commands.add_parser("process", help="Process a local audio file or capture directory offline")
-    processing.add_argument("input", type=Path)
-    processing.add_argument("--output", type=Path, required=True, help="New output directory")
-    processing.add_argument("--config", type=Path, default=data_directory() / "config.toml")
-    processing.add_argument("--source", choices=("auto", "system", "microphone", "both"), default="auto")
-    processing.add_argument("--speakers", type=int, help="Optional known speaker count")
+    for name, help_text in (("process", "Produce a transcript and draft minutes offline"),
+                            ("transcribe", "Produce a reviewable transcript without a minutes model")):
+        processing = commands.add_parser(name, help=help_text)
+        processing.add_argument("input", type=Path)
+        processing.add_argument("--output", type=Path, required=True, help="New directory, or existing job with --resume")
+        processing.add_argument("--config", type=Path, default=data_directory() / "config.toml")
+        processing.add_argument("--source", choices=("auto", "system", "microphone", "both"), default="auto")
+        processing.add_argument("--speakers", type=int, help="Optional known speaker count")
+        processing.add_argument("--min-speakers", type=int)
+        processing.add_argument("--max-speakers", type=int)
+        processing.add_argument("--resume", action="store_true", help="Reuse verified successful stages")
+    transcript = commands.add_parser("transcript", help="Review or export a local transcript without models")
+    reviews = transcript.add_subparsers(dest="operation", required=True)
+    show = reviews.add_parser("show", help="Print current transcript JSON, including revision and IDs")
+    show.add_argument("directory", type=Path)
+    apply = reviews.add_parser("apply", help="Apply an atomic JSON correction patch")
+    apply.add_argument("directory", type=Path)
+    apply.add_argument("patch", type=Path)
+    export = reviews.add_parser("export", help="Export the current reviewed transcript")
+    export.add_argument("directory", type=Path)
+    export.add_argument("--output", type=Path, required=True)
+    export.add_argument("--format", choices=("json", "markdown"), default="markdown")
     audio = commands.add_parser("audio", help="Import, export, or recover audio without loading models")
     audio_commands = audio.add_subparsers(dest="operation", required=True)
     for operation in ("import", "export", "recover"):
@@ -59,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "doctor":
             from protocoller.diagnostics import diagnose
-            report = diagnose(args.config)
+            report = diagnose(args.config, transcript_only=args.transcript_only)
             print(json.dumps(report, indent=2))
             return 1 if args.config and not report["models_ready"] else 0
         if args.command in {"build-capture", "devices", "record"}:
@@ -79,10 +96,23 @@ def main(argv: list[str] | None = None) -> int:
                 report = export_capture(args.input, args.output, recover=args.operation == "recover")
             print(json.dumps(report, indent=2))
             print(f"Saved playable audio to {args.output}")
-        elif args.command == "process":
+        elif args.command in {"process", "transcribe"}:
             from protocoller.pipeline import process
-            report = process(args.input, args.output, args.config, args.source, args.speakers)
-            print(f"Saved transcript and draft minutes to {args.output}; real-time factor {report['real_time_factor']:.2f}")
+            report = process(args.input, args.output, args.config, args.source, args.speakers,
+                             min_speakers=args.min_speakers, max_speakers=args.max_speakers,
+                             resume=args.resume, transcript_only=args.command == "transcribe")
+            artifacts = "transcript" if args.command == "transcribe" else "transcript and draft minutes"
+            print(f"Saved {artifacts} to {args.output}; real-time factor {report['real_time_factor']:.2f}")
+        elif args.command == "transcript":
+            from protocoller.transcription.review import apply_review, export_transcript, load_transcript
+            if args.operation == "show":
+                print(json.dumps(load_transcript(args.directory), indent=2, ensure_ascii=False))
+            elif args.operation == "apply":
+                result = apply_review(args.directory, json.loads(args.patch.read_text()))
+                print(f"Saved transcript revision {result['revision']} to {args.directory}")
+            else:
+                export_transcript(args.directory, args.output, args.format)
+                print(f"Exported transcript to {args.output}")
         elif args.command == "models":
             from protocoller.models import download_model, import_model, verify_model
             if args.operation == "verify":

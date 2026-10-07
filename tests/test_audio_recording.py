@@ -206,7 +206,7 @@ class RecordingTests(unittest.TestCase):
             metrics = {"seconds": .1, "peak_rss_bytes": 100}
             minutes = {name: [] for name in ("summary", "topics", "decisions", "action_items", "open_questions")}
             responses = [{"words": [], "language": "en", "metrics": metrics},
-                         {"turns": [], "metrics": metrics}, {"minutes": minutes, "metrics": metrics}]
+                         {"minutes": minutes, "metrics": metrics}]
             with patch("protocoller.pipeline.Config.load", return_value=config), \
                     patch.object(Config, "validate_models"), \
                     patch("protocoller.pipeline.verify_model", return_value={}), \

@@ -4,7 +4,7 @@
 
 Build a tool that records meetings, transcribes speech with speaker separation, and generates editable meeting minutes. Audio, transcripts, speaker processing, and text generation must stay on the user's computer.
 
-The repository currently contains Python project metadata (`Python >=3.12`) and a contributor guide, but no application implementation or dependencies. Everything below is proposed work.
+Milestones 1–3 have software implementations: local capture, durable audio import/recovery, and resumable speaker-labeled transcript review. Physical capture acceptance and real German/English model evaluation remain pending. See `docs/MILESTONE_1.md`, `docs/MILESTONE_2.md`, and `docs/MILESTONE_3.md` for evidence and remaining checks. Later milestones below remain planned work.
 
 ## Scope and Working Assumptions
 

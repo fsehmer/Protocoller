@@ -25,14 +25,14 @@ def data_directory() -> Path:
 class Config:
     transcription_model: Path
     diarization_model: Path
-    minutes_model: Path
+    minutes_model: Path | None
     language: str = "auto"
     context_size: int = 4096
     max_tokens: int = 1024
     threads: int = 4
 
     @classmethod
-    def load(cls, path: Path) -> "Config":
+    def load(cls, path: Path, require_minutes: bool = True) -> "Config":
         with path.open("rb") as stream:
             raw = tomllib.load(stream)
         models = raw.get("models", {})
@@ -55,12 +55,16 @@ class Config:
         if values["max_tokens"] >= values["context_size"]:
             raise ValueError("max_tokens must be smaller than context_size")
         return cls(local_path("transcription"), local_path("diarization"),
-                   local_path("minutes"), language, **values)
+                   local_path("minutes") if require_minutes or models.get("minutes") else None,
+                   language, **values)
 
-    def validate_models(self) -> None:
+    def validate_models(self, include_minutes: bool = True) -> None:
         from protocoller.models import verify_model
 
-        for kind, path in [("transcription", self.transcription_model),
-                           ("diarization", self.diarization_model),
-                           ("minutes", self.minutes_model)]:
+        models = [("transcription", self.transcription_model), ("diarization", self.diarization_model)]
+        if include_minutes:
+            if self.minutes_model is None:
+                raise ValueError("Missing [models].minutes in configuration")
+            models.append(("minutes", self.minutes_model))
+        for kind, path in models:
             verify_model(path, kind)

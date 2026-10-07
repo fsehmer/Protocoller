@@ -9,7 +9,7 @@ import shutil
 from protocoller.config import Config
 
 
-def diagnose(config_path: Path | None = None) -> dict:
+def diagnose(config_path: Path | None = None, transcript_only: bool = False) -> dict:
     result = {"python": platform.python_version(), "platform": platform.platform(),
               "architecture": platform.machine(), "logical_cpus": os.cpu_count(),
               "capture_supported": platform.system() == "Darwin" and
@@ -27,7 +27,8 @@ def diagnose(config_path: Path | None = None) -> dict:
         result["physical_memory_bytes"] = None
     if config_path is not None:
         try:
-            Config.load(config_path).validate_models()
+            Config.load(config_path, require_minutes=not transcript_only).validate_models(
+                include_minutes=not transcript_only)
             result["models_ready"] = True
         except (ValueError, OSError) as error:
             result["model_error"] = str(error)
