@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 
-from protocoller.audio.normalize import mix_tracks, normalize, select_source
+from protocoller.audio.normalize import mix_tracks, normalize_source
 from protocoller.config import Config, offline_environment
 from protocoller.io import write_json, write_text
 from protocoller.minutes.local import render, validate_minutes
@@ -29,7 +29,7 @@ def run_stage(stage: str, config_path: Path, input_path: Path, output_path: Path
     return json.loads(output_path.read_text())
 
 
-def process(input_path: Path, output: Path, config_path: Path, source: str = "both",
+def process(input_path: Path, output: Path, config_path: Path, source: str = "auto",
             speakers: int | None = None) -> dict:
     offline_environment()
     if speakers is not None and speakers < 1:
@@ -43,17 +43,23 @@ def process(input_path: Path, output: Path, config_path: Path, source: str = "bo
     with tempfile.TemporaryDirectory(dir=output, prefix=".processing-") as temp:
         work = Path(temp)
         audio = work / "normalized.wav"
-        if input_path.is_dir() and source == "both":
+        sources = [source]
+        if input_path.is_dir() and source in {"auto", "both"}:
+            from protocoller.audio.recording import read_manifest
+            available = read_manifest(input_path)["tracks"]
+            sources = ["system", "microphone"] if source == "both" else [
+                name for name in ("system", "microphone") if available.get(name, {}).get("has_audio")]
+            if not sources:
+                raise ValueError("Capture has no recorded audio sources")
+        if input_path.is_dir() and len(sources) > 1:
             tracks = []
-            for name in ("system", "microphone"):
-                track, offset = select_source(input_path, name)
+            for name in sources:
                 normalized = work / f"{name}.wav"
-                normalize(track, normalized, offset)
+                normalize_source(input_path, name, normalized)
                 tracks.append(normalized)
             duration = mix_tracks(tracks, audio)
         else:
-            track, offset = select_source(input_path, "system" if source == "both" else source)
-            duration = normalize(track, audio, offset)
+            duration = normalize_source(input_path, sources[0], audio)
         if duration <= 0:
             raise ValueError("Audio is empty")
         speech = run_stage("transcribe", config_path, audio, work / "speech.json", speakers)

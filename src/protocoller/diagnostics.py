@@ -16,7 +16,7 @@ def diagnose(config_path: Path | None = None) -> dict:
               int((platform.mac_ver()[0] or "0").split(".")[0]) >= 15,
               "swiftc": shutil.which("swiftc"), "languages": ["de", "en"],
               "packages": {}, "models_ready": False}
-    for package in ("faster-whisper", "pyannote.audio", "llama-cpp-python", "av", "huggingface-hub"):
+    for package in ("faster-whisper", "pyannote.audio", "llama-cpp-python", "av", "numpy", "huggingface-hub"):
         try:
             result["packages"][package] = importlib.metadata.version(package)
         except importlib.metadata.PackageNotFoundError:

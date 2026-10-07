@@ -21,14 +21,21 @@ def parser() -> argparse.ArgumentParser:
     recording = commands.add_parser("record", help="Record system playback, optionally with microphone input")
     recording.add_argument("--output", type=Path, required=True, help="New recording directory")
     recording.add_argument("--seconds", type=float, default=30, help="Maximum duration; Ctrl-C stops early")
-    recording.add_argument("--source", choices=("system", "both"), default="both")
+    recording.add_argument("--source", choices=("system", "microphone", "both"), default="both")
+    recording.add_argument("--chunk-seconds", type=float, default=2, help="Durable chunk length (0.1–60 seconds)")
     recording.add_argument("--microphone", default="default", help="Device ID from devices; default uses the OS input")
     processing = commands.add_parser("process", help="Process a local audio file or capture directory offline")
     processing.add_argument("input", type=Path)
     processing.add_argument("--output", type=Path, required=True, help="New output directory")
     processing.add_argument("--config", type=Path, default=data_directory() / "config.toml")
-    processing.add_argument("--source", choices=("system", "microphone", "both"), default="both")
+    processing.add_argument("--source", choices=("auto", "system", "microphone", "both"), default="auto")
     processing.add_argument("--speakers", type=int, help="Optional known speaker count")
+    audio = commands.add_parser("audio", help="Import, export, or recover audio without loading models")
+    audio_commands = audio.add_subparsers(dest="operation", required=True)
+    for operation in ("import", "export", "recover"):
+        command = audio_commands.add_parser(operation)
+        command.add_argument("input", type=Path)
+        command.add_argument("--output", type=Path, required=True, help="New output directory")
     models = commands.add_parser("models", help="Explicit model installation and integrity verification")
     operations = models.add_subparsers(dest="operation", required=True)
     for operation in ("import", "download", "verify"):
@@ -62,7 +69,16 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "devices":
                 subprocess.run([str(build_helper()), "--devices"], check=True)
             else:
-                return record(args.output, args.seconds, args.source, args.microphone)
+                return record(args.output, args.seconds, args.source, args.microphone, args.chunk_seconds)
+        elif args.command == "audio":
+            if args.operation == "import":
+                from protocoller.audio.importer import import_audio
+                report = import_audio(args.input, args.output)
+            else:
+                from protocoller.audio.recording import export_capture
+                report = export_capture(args.input, args.output, recover=args.operation == "recover")
+            print(json.dumps(report, indent=2))
+            print(f"Saved playable audio to {args.output}")
         elif args.command == "process":
             from protocoller.pipeline import process
             report = process(args.input, args.output, args.config, args.source, args.speakers)
